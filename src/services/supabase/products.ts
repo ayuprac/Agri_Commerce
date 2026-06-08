@@ -1,90 +1,111 @@
-import { supabase } from '../../lib/supabase/client';
-import type { Product, ProductFilters } from '../../types/product.types';
+import { supabase } from '../../lib/supabase'; // This is correct - goes up 2 levels to src, then into lib
+import { Product, ProductFilters } from '../../types/product.types';
 
-export const productService = {
-  async getProducts(filters?: ProductFilters) {
-    let query = supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true);
+export const productsService = {
+  async getProducts(filters?: ProductFilters): Promise<Product[]> {
+    try {
+      let query = supabase
+        .from('products')
+        .select('*');
 
-    if (filters?.category) {
-      query = query.eq('category', filters.category);
-    }
-
-    if (filters?.minPrice) {
-      query = query.gte('price', filters.minPrice);
-    }
-
-    if (filters?.maxPrice) {
-      query = query.lte('price', filters.maxPrice);
-    }
-
-    if (filters?.search) {
-      query = query.ilike('name', `%${filters.search}%`);
-    }
-
-    // Sorting
-    if (filters?.sortBy) {
-      switch (filters.sortBy) {
-        case 'price_asc':
-          query = query.order('price', { ascending: true });
-          break;
-        case 'price_desc':
-          query = query.order('price', { ascending: false });
-          break;
-        case 'newest':
-          query = query.order('created_at', { ascending: false });
-          break;
-        case 'popular':
-          query = query.order('total_sold', { ascending: false });
-          break;
-        case 'rating':
-          query = query.order('average_rating', { ascending: false });
-          break;
+      // Apply filters
+      if (filters?.category) {
+        query = query.eq('category', filters.category);
       }
-    } else {
-      query = query.order('created_at', { ascending: false });
+
+      if (filters?.subcategory) {
+        query = query.eq('subcategory', filters.subcategory);
+      }
+
+      if (filters?.minPrice) {
+        query = query.gte('price', filters.minPrice);
+      }
+
+      if (filters?.maxPrice) {
+        query = query.lte('price', filters.maxPrice);
+      }
+
+      if (filters?.onSale) {
+        query = query.not('original_price', 'is', null);
+      }
+
+      if (filters?.inStock) {
+        query = query.gt('stock', 0);
+      }
+
+      if (filters?.search) {
+        query = query.ilike('name', `%${filters.search}%`);
+      }
+
+      // Apply sorting
+      if (filters?.sortBy) {
+        switch (filters.sortBy) {
+          case 'price_asc':
+            query = query.order('price', { ascending: true });
+            break;
+          case 'price_desc':
+            query = query.order('price', { ascending: false });
+            break;
+          case 'rating_desc':
+            query = query.order('rating', { ascending: false });
+            break;
+          case 'newest':
+            query = query.order('created_at', { ascending: false });
+            break;
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching products:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getProducts:', error);
+      throw error;
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data as Product[];
   },
 
-  async getProductBySlug(slug: string) {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('slug', slug)
-      .single();
+  async getProductById(id: string): Promise<Product | null> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (error) throw error;
-    return data as Product;
+      if (error) {
+        console.error('Error fetching product:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getProductById:', error);
+      throw error;
+    }
   },
 
-  async getFeaturedProducts() {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_featured', true)
-      .eq('is_active', true)
-      .limit(8);
+  async getFeaturedProducts(limit: number = 8): Promise<Product[]> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_featured', true)
+        .limit(limit);
 
-    if (error) throw error;
-    return data as Product[];
-  },
+      if (error) {
+        console.error('Error fetching featured products:', error);
+        throw error;
+      }
 
-  async getRelatedProducts(category: string, currentProductId: string) {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('category', category)
-      .eq('is_active', true)
-      .neq('id', currentProductId)
-      .limit(4);
-
-    if (error) throw error;
-    return data as Product[];
+      return data || [];
+    } catch (error) {
+      console.error('Error in getFeaturedProducts:', error);
+      throw error;
+    }
   }
 };
